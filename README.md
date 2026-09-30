@@ -29,6 +29,8 @@ After checking their graph, students receive one strength, five checklist review
 
 The Explain step shows a smaller, read-only vertical graph built by the same drawing function as the Graph step. It preserves the student's bar heights, colors, interval labels, scale, and tick values. The graph sits beside the writing on wider screens and above it on narrow screens. Number fields select their existing value on initial focus/click; editing clears the relevant marks immediately without rebuilding the screen when moving to the next field.
 
+In the Graph step, every interval velocity is included by default. A student may uncheck **Show this velocity on the graph** for up to two possible unusual results. The calculated velocity and original measurements remain recorded; the chart keeps a labeled gap, and the student must enter a reason of at least 10 characters. At least three velocities must remain visible. The Explain preview lists hidden intervals and reasons. AI feedback receives the server-recomputed velocity, its hidden/visible status, and the student's reason, and is instructed not to assume that a hidden result is an error.
+
 ## Run with AI feedback
 
 Requires Node.js 22 or later. No packages need installing.

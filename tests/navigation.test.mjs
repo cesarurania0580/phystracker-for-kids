@@ -10,9 +10,10 @@ function app(fetchImpl){
  const {state,intervals,requestFeedback}=ctx.test;
  const click=(action,index=0)=>el('#app').click({target:{closest:()=>({dataset:{action,index:String(index)}})}});
  const input=(field,index,value)=>el('#app').input({target:{dataset:{field,index:String(index)},value}});
+ const include=(index,checked)=>el('#app').change({target:{dataset:{field:'included',index:String(index)},checked}});
  const write=value=>el('#app').input({target:{id:'explanation',value}});
  state.welcomed=true;click('demo');click('calc');intervals().forEach((r,i)=>input('answer',i,Number(r.v).toPrecision(2)));click('check-calc');click('graph');intervals().forEach((r,i)=>input('height',i,Number(r.v).toPrecision(2)));click('check-graph');
- return {state,click,input,write,el,requestFeedback,ctx};
+ return {state,click,input,include,write,el,requestFeedback,ctx};
 }
 const feedback={strength:'You described the change.',checklist:Object.fromEntries(checklistKeys.map(key=>[key,{status:key==='anomalies'?'no_anomaly':'clear',comment:'A short observation.'}])),nextStep:'Check your units.',question:'What do equal bars tell you?'};
 test('navigation preserves graph, explanation, feedback and escapes student/AI text',async()=>{
@@ -46,5 +47,15 @@ test('compact graph matches constructed bars and scale, without editing controls
  assert.deepEqual(bars(preview),bars(source));assert.equal(ticks(preview),ticks(source));
  assert(!preview.includes('role="slider"'));assert(!preview.includes('data-field="height"'));
  assert(preview.includes('Check unusual results'));assert(preview.includes('Use scientific words'));
- assert(source.includes('During which section was the runner fastest?'));
+ assert(source.includes('During which visible section was the runner fastest?'));
+});
+test('student can hide up to two velocity bars with reasons and send the choice for feedback',async()=>{
+ let payload;const a=app(async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({feedback})};});
+ a.include(1,false);assert.equal(a.state.excluded[1],true);assert(a.el('#app').innerHTML.includes('Not graphed'));assert(a.el('#app').innerHTML.includes('Why did you hide this velocity?'));
+ a.input('excludeReason',1,'This value is much higher than the nearby velocities.');a.click('check-graph');assert.equal(a.state.message,'Your graph is ready! Which visible section has the tallest bar?');
+ a.click('explain');assert(a.el('#app').innerHTML.includes('Interval 2:'));assert(a.el('#app').innerHTML.includes('⊘'));
+ a.write('Interval 2 looked unusual, so I compared the other visible bars.');await a.requestFeedback();
+ assert.deepEqual(payload.excludedIntervals,[{interval:2,reason:'This value is much higher than the nearby velocities.'}]);
+ a.click('back-graph');a.include(2,false);a.input('excludeReason',2,'This value also does not fit the pattern I observed.');a.include(3,false);
+ assert.notEqual(a.state.excluded[3],true);assert.equal(a.state.message,'You can hide no more than two velocities.');
 });

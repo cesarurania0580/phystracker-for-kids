@@ -5,15 +5,15 @@ import vm from 'node:vm';
 import {checklistKeys} from '../feedback.mjs';
 function app(fetchImpl){
  const elements=new Map();const el=s=>{if(!elements.has(s))elements.set(s,{innerHTML:'',dataset:{},addEventListener(type,fn){this[type]=fn},setAttribute(){},remove(){},focus(){this.focused=true}});return elements.get(s)};
- const ctx={document:{querySelector:el,documentElement:{}},window:{},location:{protocol:'http:'},clearTimeout(){},setTimeout(){},AbortSignal,fetch:fetchImpl};vm.createContext(ctx);
- const source=readFileSync(new URL('../index.html',import.meta.url),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace('  render();\n})();','  globalThis.test={state,intervals,requestFeedback,compactGraphScale};render();\n})();');vm.runInContext(source,ctx);
- const {state,intervals,requestFeedback,compactGraphScale}=ctx.test;
- const click=(action,index=0)=>el('#app').click({target:{closest:()=>({dataset:{action,index:String(index)}})}});
+ const ctx={document:{querySelector:el,querySelectorAll:()=>[],documentElement:{}},window:{},location:{protocol:'http:'},clearTimeout(){},setTimeout(){},AbortSignal,fetch:fetchImpl};vm.createContext(ctx);
+ const source=readFileSync(new URL('../index.html',import.meta.url),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace('  render();\n})();','  globalThis.test={state,intervals,requestFeedback,compactGraphScale,feedbackProgress};render();\n})();');vm.runInContext(source,ctx);
+ const {state,intervals,requestFeedback,compactGraphScale,feedbackProgress}=ctx.test;
+ const click=(action,index=0,extra={})=>el('#app').click({target:{closest:()=>({dataset:{action,index:String(index),...extra}})}});
  const input=(field,index,value)=>el('#app').input({target:{dataset:{field,index:String(index)},value}});
- const include=(index,checked)=>el('#app').change({target:{dataset:{field:'included',index:String(index)},checked}});
+ const hide=(index,reason)=>{click('flag-outlier',index);input('dialogReason',0,reason);click('hide-bar')};
  const write=value=>el('#app').input({target:{id:'explanation',value}});
  state.welcomed=true;click('demo');click('calc');intervals().forEach((r,i)=>input('answer',i,Number(r.v).toPrecision(2)));click('check-calc');click('graph');intervals().forEach((r,i)=>input('height',i,Number(r.v).toPrecision(2)));click('check-graph');
- return {state,click,input,include,write,el,requestFeedback,compactGraphScale,ctx};
+ return {state,click,input,hide,write,el,requestFeedback,compactGraphScale,feedbackProgress,ctx};
 }
 const feedback={strength:'You described the change.',checklist:Object.fromEntries(checklistKeys.map(key=>[key,{status:key==='anomalies'?'no_anomaly':'clear',comment:'A short observation.'}])),nextStep:'Check your units.',question:'What do equal bars tell you?'};
 test('navigation preserves graph, explanation, feedback and escapes student/AI text',async()=>{
@@ -51,21 +51,30 @@ test('compact graph keeps the intervals but uses its own readable scale',()=>{
 });
 test('student can hide up to two velocity bars with reasons and send the choice for feedback',async()=>{
  let payload;const a=app(async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({feedback})};});
- a.include(1,false);assert.equal(a.state.excluded[1],true);assert(a.el('#app').innerHTML.includes('Not graphed'));assert(a.el('#app').innerHTML.includes('Why did you hide this velocity?'));
- const reasonField=a.el('#app').innerHTML.match(/<input id="reason-\d+"[^>]+>/)[0];assert(!reasonField.includes('placeholder='));assert(a.el('#app').innerHTML.includes('A few words are enough'));
- a.input('excludeReason',1,'High');assert.equal(a.el('#reason-status-1').hidden,false);assert.match(a.el('#reason-status-1').textContent,/Reason added/);a.click('check-graph');assert.equal(a.state.message,'Your graph is ready! Which visible section has the tallest bar?');
+ a.click('flag-outlier',1);assert(a.el('#app').innerHTML.includes('role="dialog"'));assert(a.el('#app').innerHTML.includes('Hide interval 2 from the graph?'));assert(a.el('#app').innerHTML.includes('measurement or timing problem'));assert(a.el('#app').innerHTML.match(/id="confirm-hide"[^>]+/)[0].includes('disabled'));assert(!a.el('#app').innerHTML.match(/id="dialog-reason"[^>]+/)[0].includes('placeholder='));
+ a.click('choose-reason',0,{reason:'reasonHigh'});assert.equal(a.state.dialogDraft,'It is much higher than nearby velocities.');
+ a.input('dialogReason',0,'High');a.click('hide-bar');assert.equal(a.state.excluded[1],true);assert.equal(a.state.exclusionReasons[1],'High');assert(a.el('#app').innerHTML.includes('Not graphed'));assert(a.el('#app').innerHTML.includes('Change reason'));
+ a.click('check-graph');assert.equal(a.state.message,'Your graph is ready! Which visible section has the tallest bar?');
  a.click('explain');assert(a.el('#app').innerHTML.includes('Interval 2:'));assert(a.el('#app').innerHTML.includes('⊘'));
  a.write('Interval 2 looked unusual, so I compared the other visible bars.');await a.requestFeedback();
  assert.deepEqual(payload.excludedIntervals,[{interval:2,reason:'High'}]);
- a.click('back-graph');a.include(2,false);a.input('excludeReason',2,'This value also does not fit the pattern I observed.');a.include(3,false);
- assert.notEqual(a.state.excluded[3],true);assert.equal(a.state.message,'You can hide no more than two velocities.');
+ a.click('back-graph');a.hide(2,'It does not fit the pattern.');a.click('flag-outlier',3);
+ assert.equal(a.state.dialogIndex,null);assert.equal(a.state.message,'You can hide no more than two velocities.');
+ a.click('show-bar',1);assert.equal(a.state.excluded[1],false);assert(a.el('#app').innerHTML.includes('This bar looks unusual'));
 });
 test('missing exclusion reason returns to the exact field instead of a generic graph error',async()=>{
- let calls=0;const a=app(async()=>{calls++;return {ok:true,json:async()=>({feedback})};});a.include(2,false);a.click('explain');a.write('Interval 3 may be unusual compared with the other velocities.');await a.requestFeedback();
- assert.equal(calls,0);assert.equal(a.state.stage,2);assert.equal(a.state.message,'Add a reason for hidden interval 3.');assert.equal(a.el('#reason-2').focused,true);
+ let calls=0;const a=app(async()=>{calls++;return {ok:true,json:async()=>({feedback})};});a.state.excluded[2]=true;a.state.exclusionReasons[2]='';a.click('explain');a.write('Interval 3 may be unusual compared with the other velocities.');await a.requestFeedback();
+ assert.equal(calls,0);assert.equal(a.state.stage,2);assert.equal(a.state.dialogIndex,2);assert.equal(a.state.message,'Add a reason for hidden interval 3.');assert.equal(a.el('#dialog-reason').focused,true);
 });
 test('compact preview ignores a very large hidden velocity when choosing its scale',()=>{
- const a=app();a.state.heights[0]='80';a.state.scale=80;a.include(0,false);a.input('excludeReason',0,'This value is much larger than all nearby velocities.');
+ const a=app();a.state.heights[0]='80';a.state.scale=80;a.hide(0,'This value is much larger than all nearby velocities.');
  const preview=a.compactGraphScale();assert(preview.scale<80);assert(preview.ticks.length<=7);
  a.click('explain');assert(a.el('#app').innerHTML.includes('Not graphed'));assert(a.el('#app').innerHTML.includes('height:338px'));
+});
+test('traffic light uses consistent checklist rules and becomes stale after editing',async()=>{
+ const green=structuredClone(feedback);assert.equal(app().feedbackProgress(green).color,'green');
+ const yellow=structuredClone(feedback);yellow.checklist.reasoning.status='almost';assert.equal(app().feedbackProgress(yellow).color,'yellow');
+ const red=structuredClone(feedback);for(const key of ['change','pattern','reasoning'])red.checklist[key].status='add';assert.equal(app().feedbackProgress(red).color,'red');
+ assert.equal(app().feedbackProgress(green,true).color,'stale');
+ const a=app(async()=>({ok:true,json:async()=>({feedback:green})}));a.click('explain');a.write('The average velocity increased across the visible intervals.');await a.requestFeedback();assert(a.el('#app').innerHTML.includes('Ready for a final check'));a.write('I changed this answer.');assert.equal(a.el('#feedback-traffic').className,'traffic stale');assert.equal(a.el('#traffic-title').textContent,'Check your revision again');
 });

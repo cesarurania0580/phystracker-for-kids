@@ -26,7 +26,7 @@ test('derive rounded evidence server-side and exclude nickname/extra client fiel
  const withHidden=valid();withHidden.excludedIntervals=[{interval:2,reason:'This value is much higher than the nearby values.'}];const hiddenSubmission=prepareSubmission(withHidden);
  assert.equal(hiddenSubmission.intervals[1].shownInGraph,false);assert.match(hiddenSubmission.intervals[1].studentReasonForHiding,/much higher/);assert.equal(hiddenSubmission.intervals[0].shownInGraph,true);
  const shortReason=valid();shortReason.excludedIntervals=[{interval:2,reason:'High'}];assert.equal(prepareSubmission(shortReason).intervals[1].studentReasonForHiding,'High');
- const request=buildRequest(submission,'test-model');assert.equal(request.store,false);assert.equal(request.text.format.strict,true);assert.equal(request.model,'test-model');assert.match(request.instructions,/not an official IB grade/);
+ const request=buildRequest(submission,'test-model');assert.equal(request.store,false);assert.equal(request.text.format.strict,true);assert.equal(request.model,'test-model');assert.match(request.instructions,/not an official IB grade/);assert.match(request.instructions,/one idea per sentence/);assert.match(request.instructions,/exactly one highest-priority revision action/);
  assert.match(buildRequest(hiddenSubmission,'test-model').instructions,/shownInGraph=false/);
  const unequal=valid();unequal.rows=[{t:0,x:0},{t:1.1,x:3},{t:2,x:7},{t:2.8,x:11},{t:3.5,x:15},{t:4.1,x:20}];assert.equal(prepareSubmission(unequal).intervals[0].averageVelocity,2.7);
  const zero=valid();zero.rows.forEach(r=>r.x=0);assert(prepareSubmission(zero).intervals.every(r=>r.averageVelocity===0));

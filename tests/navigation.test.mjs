@@ -32,6 +32,12 @@ test('unavailable feedback keeps writing; validation prevents API calls',async()
  a.write('The highest bar shows the greatest average velocity.');await a.requestFeedback();assert.equal(calls,1);assert.equal(a.state.feedbackError,'unavailable');assert.match(a.state.explanation,/highest bar/);assert.equal(a.state.feedbackBusy,false);
  a.input('height',0,'');await a.requestFeedback();assert.equal(calls,1);assert.equal(a.state.feedbackError,'graphFirst');
 });
+test('a correct visible graph can request feedback without a separate check click',async()=>{
+ let calls=0;const a=app(async()=>{calls++;return {ok:true,json:async()=>({feedback})};});
+ a.state.barChecked.fill(false);delete a.state.scale;
+ a.click('explain');a.write('The average velocity increased across the intervals shown in the graph.');await a.requestFeedback();
+ assert.equal(calls,1);assert.equal(a.state.feedbackError,'');
+});
 test('late response does not overwrite a new run; concurrent clicks send once',async()=>{
  let resolve,calls=0;const a=app(()=>{calls++;return new Promise(r=>resolve=r)});a.click('explain');a.write('The runner moves faster in the later intervals.');const pending=a.requestFeedback();await a.requestFeedback();assert.equal(calls,1);
  a.click('back-graph');a.click('restart');resolve({ok:true,json:async()=>({feedback})});await pending;assert.equal(a.state.feedback,null);assert.equal(a.state.explanation,'');

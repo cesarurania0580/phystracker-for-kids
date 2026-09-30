@@ -193,7 +193,12 @@
     const target=roundSig2(expected),tolerance=target===0?graphScale()*.01:Math.min(graphScale()*.025,target*.1);
     return Math.abs(Number(value)-target)<=tolerance+1e-10;
   }
-  function graphComplete(){const vals=intervals(),visible=visibleIntervals();return !exclusionProblem()&&Number(state.scale)>0&&Number(state.scale)>=Math.max(...visible.map(r=>roundSig2(r.v)))&&vals.every((r,i)=>isExcluded(i)||(state.barChecked[i]&&barCorrect(state.heights[i],r.v)));}
+  function graphComplete(){
+    const vals=intervals(),visible=visibleIntervals(),scale=graphScale();
+    // Completion is based on the graph the student made. Pressing a separate
+    // check button must not be an invisible requirement for AI feedback.
+    return !exclusionProblem()&&scale>=Math.max(...visible.map(r=>roundSig2(r.v)))&&vals.every((r,i)=>isExcluded(i)||barCorrect(state.heights[i],r.v));
+  }
   function chartView(compact=false){
     const vals=intervals(),preview=compact?compactGraphScale():null,scale=preview?.scale??graphScale();
     const ticks=preview?.ticks??Array.from({length:scale+1},(_,i)=>i),gridStep=100/(ticks.length-1);

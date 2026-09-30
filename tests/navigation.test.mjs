@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {checklistKeys} from '../feedback.mjs';
 function app(fetchImpl){
- const elements=new Map();const el=s=>{if(!elements.has(s))elements.set(s,{innerHTML:'',dataset:{},addEventListener(type,fn){this[type]=fn},setAttribute(){},remove(){},focus(){}});return elements.get(s)};
+ const elements=new Map();const el=s=>{if(!elements.has(s))elements.set(s,{innerHTML:'',dataset:{},addEventListener(type,fn){this[type]=fn},setAttribute(){},remove(){},focus(){this.focused=true}});return elements.get(s)};
  const ctx={document:{querySelector:el,documentElement:{}},window:{},location:{protocol:'http:'},clearTimeout(){},setTimeout(){},AbortSignal,fetch:fetchImpl};vm.createContext(ctx);
  const source=readFileSync(new URL('../index.html',import.meta.url),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace('  render();\n})();','  globalThis.test={state,intervals,requestFeedback,compactGraphScale};render();\n})();');vm.runInContext(source,ctx);
  const {state,intervals,requestFeedback,compactGraphScale}=ctx.test;
@@ -52,13 +52,17 @@ test('compact graph keeps the intervals but uses its own readable scale',()=>{
 test('student can hide up to two velocity bars with reasons and send the choice for feedback',async()=>{
  let payload;const a=app(async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({feedback})};});
  a.include(1,false);assert.equal(a.state.excluded[1],true);assert(a.el('#app').innerHTML.includes('Not graphed'));assert(a.el('#app').innerHTML.includes('Why did you hide this velocity?'));
- const reasonField=a.el('#app').innerHTML.match(/<input class="reason-field"[^>]+>/)[0];assert(!reasonField.includes('placeholder='));assert(a.el('#app').innerHTML.includes('Compare this velocity with the others'));
- a.input('excludeReason',1,'This value is much higher than the nearby velocities.');a.click('check-graph');assert.equal(a.state.message,'Your graph is ready! Which visible section has the tallest bar?');
+ const reasonField=a.el('#app').innerHTML.match(/<input id="reason-\d+"[^>]+>/)[0];assert(!reasonField.includes('placeholder='));assert(a.el('#app').innerHTML.includes('A few words are enough'));
+ a.input('excludeReason',1,'High');assert.equal(a.el('#reason-status-1').hidden,false);assert.match(a.el('#reason-status-1').textContent,/Reason added/);a.click('check-graph');assert.equal(a.state.message,'Your graph is ready! Which visible section has the tallest bar?');
  a.click('explain');assert(a.el('#app').innerHTML.includes('Interval 2:'));assert(a.el('#app').innerHTML.includes('⊘'));
  a.write('Interval 2 looked unusual, so I compared the other visible bars.');await a.requestFeedback();
- assert.deepEqual(payload.excludedIntervals,[{interval:2,reason:'This value is much higher than the nearby velocities.'}]);
+ assert.deepEqual(payload.excludedIntervals,[{interval:2,reason:'High'}]);
  a.click('back-graph');a.include(2,false);a.input('excludeReason',2,'This value also does not fit the pattern I observed.');a.include(3,false);
  assert.notEqual(a.state.excluded[3],true);assert.equal(a.state.message,'You can hide no more than two velocities.');
+});
+test('missing exclusion reason returns to the exact field instead of a generic graph error',async()=>{
+ let calls=0;const a=app(async()=>{calls++;return {ok:true,json:async()=>({feedback})};});a.include(2,false);a.click('explain');a.write('Interval 3 may be unusual compared with the other velocities.');await a.requestFeedback();
+ assert.equal(calls,0);assert.equal(a.state.stage,2);assert.equal(a.state.message,'Add a reason for hidden interval 3.');assert.equal(a.el('#reason-2').focused,true);
 });
 test('compact preview ignores a very large hidden velocity when choosing its scale',()=>{
  const a=app();a.state.heights[0]='80';a.state.scale=80;a.include(0,false);a.input('excludeReason',0,'This value is much larger than all nearby velocities.');

@@ -28,7 +28,7 @@ export function prepareSubmission(body) {
   if(!Array.isArray(excluded)||excluded.length>2)throw Error('invalid');
   const seen=new Set();
   for(const item of excluded){
-    if(!item||!Number.isInteger(item.interval)||item.interval<1||item.interval>intervals.length||seen.has(item.interval)||typeof item.reason!=='string'||item.reason.trim().length<10||item.reason.length>300)throw Error('invalid');
+    if(!item||!Number.isInteger(item.interval)||item.interval<1||item.interval>intervals.length||seen.has(item.interval)||typeof item.reason!=='string'||!item.reason.trim()||item.reason.length>300)throw Error('invalid');
     seen.add(item.interval);
   }
   if(intervals.length-seen.size<3)throw Error('invalid');

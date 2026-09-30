@@ -25,6 +25,7 @@ test('derive rounded evidence server-side and exclude nickname/extra client fiel
  assert(submission.intervals.every(interval=>interval.shownInGraph===true));
  const withHidden=valid();withHidden.excludedIntervals=[{interval:2,reason:'This value is much higher than the nearby values.'}];const hiddenSubmission=prepareSubmission(withHidden);
  assert.equal(hiddenSubmission.intervals[1].shownInGraph,false);assert.match(hiddenSubmission.intervals[1].studentReasonForHiding,/much higher/);assert.equal(hiddenSubmission.intervals[0].shownInGraph,true);
+ const shortReason=valid();shortReason.excludedIntervals=[{interval:2,reason:'High'}];assert.equal(prepareSubmission(shortReason).intervals[1].studentReasonForHiding,'High');
  const request=buildRequest(submission,'test-model');assert.equal(request.store,false);assert.equal(request.text.format.strict,true);assert.equal(request.model,'test-model');assert.match(request.instructions,/not an official IB grade/);
  assert.match(buildRequest(hiddenSubmission,'test-model').instructions,/shownInGraph=false/);
  const unequal=valid();unequal.rows=[{t:0,x:0},{t:1.1,x:3},{t:2,x:7},{t:2.8,x:11},{t:3.5,x:15},{t:4.1,x:20}];assert.equal(prepareSubmission(unequal).intervals[0].averageVelocity,2.7);
@@ -34,7 +35,7 @@ test('reject malformed or unbounded input',()=>{
  for(const patch of [{explanation:'short'},{explanation:'x'.repeat(3001)},{language:'xx'},{rows:[]},{rows:[null,...valid().rows.slice(1)]}])assert.throws(()=>prepareSubmission({...valid(),...patch}));
  for(const value of [NaN,Infinity,'2',null]){const body=valid();body.rows[1].t=value;assert.throws(()=>prepareSubmission(body));}
  const body=valid();body.rows[1].t=0;assert.throws(()=>prepareSubmission(body));body.rows[1].t=1;body.rows[1].x=-1;assert.throws(()=>prepareSubmission(body));
- for(const excludedIntervals of [[{interval:1,reason:'short'}],[{interval:99,reason:'This explanation is long enough.'}],[{interval:1,reason:'This explanation is long enough.'},{interval:1,reason:'This is also long enough to validate.'}],Array.from({length:3},(_,i)=>({interval:i+1,reason:'This explanation is long enough.'}))])assert.throws(()=>prepareSubmission({...valid(),excludedIntervals}));
+ for(const excludedIntervals of [[{interval:1,reason:'   '}],[{interval:99,reason:'This explanation is long enough.'}],[{interval:1,reason:'This explanation is long enough.'},{interval:1,reason:'This is also long enough to validate.'}],Array.from({length:3},(_,i)=>({interval:i+1,reason:'This explanation is long enough.'}))])assert.throws(()=>prepareSubmission({...valid(),excludedIntervals}));
 });
 test('provider payload and structured response',async()=>{
  const result=await getFeedback(prepareSubmission(valid()),{apiKey:'test-secret',fetchImpl:async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');assert.equal(options.headers.Authorization,'Bearer test-secret');assert(!options.body.includes('Must not be sent'));return mockProvider();}});assert.deepEqual(result,feedback);

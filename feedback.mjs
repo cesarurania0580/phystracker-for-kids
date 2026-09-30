@@ -25,7 +25,7 @@ export function prepareSubmission(body) {
     return {interval:i+1, startTime:rows[i].t, endTime:r.t, changeInPosition:sig(dx), changeInTime:sig(dt), averageVelocity:velocity};
   });
   const excluded=body.excludedIntervals??[];
-  if(!Array.isArray(excluded)||excluded.length>2)throw Error('invalid');
+  if(!Array.isArray(excluded))throw Error('invalid');
   const seen=new Set();
   for(const item of excluded){
     if(!item||!Number.isInteger(item.interval)||item.interval<1||item.interval>intervals.length||seen.has(item.interval)||typeof item.reason!=='string'||!item.reason.trim()||item.reason.length>300)throw Error('invalid');

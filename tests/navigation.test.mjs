@@ -55,7 +55,7 @@ test('compact graph keeps the intervals but uses its own readable scale',()=>{
  assert(preview.includes('Check unusual results'));assert(preview.includes('Use scientific words'));
  assert(source.includes('During which visible section was the runner fastest?'));
 });
-test('student can hide up to two velocity bars with reasons and send the choice for feedback',async()=>{
+test('student can hide several velocity bars while keeping at least three visible',async()=>{
  let payload;const a=app(async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({feedback})};});
  a.click('flag-outlier',1);assert(a.el('#app').innerHTML.includes('role="dialog"'));assert(a.el('#app').innerHTML.includes('Hide interval 2 from the graph?'));assert(a.el('#app').innerHTML.includes('measurement or timing problem'));assert(a.el('#app').innerHTML.match(/id="confirm-hide"[^>]+/)[0].includes('disabled'));assert(!a.el('#app').innerHTML.match(/id="dialog-reason"[^>]+/)[0].includes('placeholder='));
  a.click('choose-reason',0,{reason:'reasonHigh'});assert.equal(a.state.dialogDraft,'It is much higher than nearby velocities.');
@@ -64,8 +64,8 @@ test('student can hide up to two velocity bars with reasons and send the choice 
  a.click('explain');assert(a.el('#app').innerHTML.includes('Interval 2:'));assert(a.el('#app').innerHTML.includes('⊘'));
  a.write('Interval 2 looked unusual, so I compared the other visible bars.');await a.requestFeedback();
  assert.deepEqual(payload.excludedIntervals,[{interval:2,reason:'High'}]);
- a.click('back-graph');a.hide(2,'It does not fit the pattern.');a.click('flag-outlier',3);
- assert.equal(a.state.dialogIndex,null);assert.equal(a.state.message,'You can hide no more than two velocities.');
+ a.click('back-graph');a.hide(2,'It does not fit the pattern.');a.hide(3,'It may have a timing problem.');a.hide(4,'It is much lower than nearby velocities.');a.click('flag-outlier',5);
+ assert.equal(a.state.excluded.filter(Boolean).length,4);assert.equal(a.state.dialogIndex,null);assert.equal(a.state.message,'The graph must keep at least three visible velocities.');
  a.click('show-bar',1);assert.equal(a.state.excluded[1],false);assert(a.el('#app').innerHTML.includes('This bar looks unusual'));
 });
 test('missing exclusion reason returns to the exact field instead of a generic graph error',async()=>{
